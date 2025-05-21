@@ -2,30 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Typography, Rating, Button, CircularProgress } from '@mui/material';
 
-// Dummy data of users who teach skills
-const dummyTeachers = {
-  Docker: [
-    { id: 1, name: 'Alice', rating: 4.5 },
-    { id: 2, name: 'Bob', rating: 3.8 },
-  ],
-  Go: [
-    { id: 3, name: 'Charlie', rating: 4.2 },
-  ],
-  'Cloud DevOps': [
-    { id: 4, name: 'Dave', rating: 4.9 },
-    { id: 5, name: 'Eve', rating: 4.0 },
-  ],
-};
-
 const FindTeachers = () => {
   const { skillName } = useParams();
   const [loading, setLoading] = useState(true);
-  const teachers = dummyTeachers[skillName] || [];
+  const [teachers, setTeachers] = useState([]);
 
   useEffect(() => {
-    // Simulate API loading delay
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
+    setLoading(true);
+    fetch(`http://localhost:4000/api/teachers?skill=${encodeURIComponent(skillName)}`)
+      .then(res => res.json())
+      .then(data => {
+        setTeachers(data);
+        setLoading(false);
+      });
   }, [skillName]);
 
   if (loading) {
@@ -71,7 +60,7 @@ const FindTeachers = () => {
               </Typography>
 
               <Rating
-                value={teacher.rating}
+                value={teacher.rating || 0}
                 precision={0.5}
                 readOnly
                 sx={{

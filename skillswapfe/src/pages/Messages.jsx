@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Cookies from 'js-cookie';
 import {
   Box,
   List,
@@ -12,39 +13,13 @@ import {
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 
-const dummyChats = [
-  { id: 1, name: 'Bob' },
-  { id: 2, name: 'Jane' },
-  { id: 3, name: 'Alice' },
-];
-
-const dummyMessages = {
-  1: [
-    { from: 'me', text: 'Hi Bob!', timestamp: new Date('2025-05-18T10:15:00') },
-    { from: 'Bob', text: 'Hey! What’s up?', timestamp: new Date('2025-05-18T10:16:00') },
-    { from: 'Bob', text: 'Are you coming tomorrow?', timestamp: new Date('2025-05-19T09:00:00') },
-    { from: 'me', text: 'Yes, I’ll be there.', timestamp: new Date('2025-05-19T09:15:00') },
-    { from: 'Bob', text: 'Great! Don’t forget the slides.', timestamp: new Date('2025-05-19T09:17:00') },
-    { from: 'me', text: 'Already prepared 😎', timestamp: new Date('2025-05-19T09:18:00') },
-    { from: 'Bob', text: 'You’re the best!', timestamp: new Date('2025-05-19T09:20:00') },
-    { from: 'Bob', text: 'BTW, did you check the new specs?', timestamp: new Date('2025-05-20T08:45:00') },
-    { from: 'me', text: 'Not yet. On it now.', timestamp: new Date('2025-05-20T08:47:00') },
-    { from: 'me', text: 'They look doable.', timestamp: new Date('2025-05-20T09:00:00') },
-    { from: 'Bob', text: 'Awesome. Let’s catch up later.', timestamp: new Date('2025-05-20T09:10:00') },
-  ],
-  2: [
-    { from: 'me', text: 'Hi Jane', timestamp: new Date('2025-05-19T12:00:00') },
-    { from: 'Jane', text: 'Hello!', timestamp: new Date('2025-05-19T12:05:00') },
-  ],
-  3: [],
-};
-
 const Messages = () => {
   const [showNewMessagePing, setShowNewMessagePing] = useState(false);
-  const [selectedChatId, setSelectedChatId] = useState(null); // Initially no chat selected
+  const [selectedChatId, setSelectedChatId] = useState(null); 
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState(dummyMessages);
-  const [loading, setLoading] = useState(false); // <-- Loading state
+  const [messages, setMessages] = useState({});
+  const [loading, setLoading] = useState(false); 
+  const [chats, setChats] = useState([]);
 
   const scrollRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -98,16 +73,31 @@ const Messages = () => {
     }));
   }, [selectedChatId]);
 
+  // Fetch chat list from backend using JWT
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) return;
+    fetch('http://localhost:4000/api/chats', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => setChats(data));
+  }, []);
+
   // New: loading simulation when chat changes
   useEffect(() => {
     if (selectedChatId === null) return;
     setLoading(true);
-    const timer = setTimeout(() => {
-      setLoading(false);
-      // Scroll after loading finishes
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-    }, 800); // simulate 800ms load time
-    return () => clearTimeout(timer);
+    const token = Cookies.get('token');
+    if (!token) return;
+    fetch(`http://localhost:4000/api/messages/${selectedChatId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        setMessages(prev => ({ ...prev, [selectedChatId]: data }));
+        setLoading(false);
+      });
   }, [selectedChatId]);
 
   const handleSend = () => {
@@ -145,7 +135,7 @@ const Messages = () => {
           Chats
         </Typography>
         <List>
-          {dummyChats.map((chat) => (
+          {chats.map((chat) => (
             <ListItem
               key={chat.id}
               component="button"
