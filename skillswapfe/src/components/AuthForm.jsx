@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import * as jose from 'jose';
 
-const API_URL = 'http://localhost:4000/api';
+const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL;
+const API_URL = `${backendApiUrl}/api`;
 
 const AuthForm = ({ setIsLoggedIn }) => {
   const [tab, setTab] = useState(0);
@@ -24,6 +25,7 @@ const AuthForm = ({ setIsLoggedIn }) => {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(loginData),
       });
       if (!res.ok) {
@@ -33,7 +35,9 @@ const AuthForm = ({ setIsLoggedIn }) => {
       }
       const data = await res.json();
       Cookies.set('token', data.token);
+      localStorage.setItem('token', data.token);
       setIsLoggedIn(true);
+      sessionStorage.removeItem('signupData'); 
       navigate('/'); 
     } catch (err) {
         console.error(err);
@@ -41,14 +45,23 @@ const AuthForm = ({ setIsLoggedIn }) => {
     }
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
-    if (signupData.name && signupData.email && signupData.password) {
-      sessionStorage.setItem('signupData', JSON.stringify(signupData));
-      navigate('/onboarding');
-    } else {
+    setError('');
+    // Basic validation
+    if (!signupData.name || !signupData.email || !signupData.password) {
       setError('Please fill all fields.');
+      return;
     }
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(signupData.email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    // Save signup data and redirect to onboarding (do not call signup API here)
+    sessionStorage.setItem('signupData', JSON.stringify(signupData));
+    navigate('/onboarding');
   };
 
   return (

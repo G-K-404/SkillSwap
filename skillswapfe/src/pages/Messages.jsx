@@ -12,6 +12,11 @@ import {
   CircularProgress,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import { useLocation } from 'react-router-dom';
+
+const WS_PORT = import.meta.env.VITE_WS_PORT || 4001;
+const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL;
+let ws = null;
 
 const Messages = () => {
   const [showNewMessagePing, setShowNewMessagePing] = useState(false);
@@ -20,12 +25,14 @@ const Messages = () => {
   const [messages, setMessages] = useState({});
   const [loading, setLoading] = useState(false); 
   const [chats, setChats] = useState([]);
+  const [userId, setUserId] = useState(null);
 
   const scrollRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [readMessages, setReadMessages] = useState({});
 
   const observer = useRef(null);
+  const location = useLocation();
 
   useEffect(() => {
     observer.current = new IntersectionObserver(
@@ -73,40 +80,144 @@ const Messages = () => {
     }));
   }, [selectedChatId]);
 
-  // Fetch chat list from backend using JWT
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUserId(payload.user.id);
+      } catch {}
+    }
+  }, []);
+
   useEffect(() => {
     const token = Cookies.get('token');
     if (!token) return;
-    fetch('http://localhost:4000/api/chats', {
+    fetch(`${backendApiUrl}/api/matches?userId=` + (() => {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.user.id;
+      } catch { return ''; }
+    })(), {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => setChats(data));
+      .then(data => {
+        setChats(data.map(match => ({ id: match.id, name: match.username || match.name })));
+      });
   }, []);
 
-  // New: loading simulation when chat changes
   useEffect(() => {
     if (selectedChatId === null) return;
     setLoading(true);
     const token = Cookies.get('token');
     if (!token) return;
-    fetch(`http://localhost:4000/api/messages/${selectedChatId}`, {
+    fetch(`${backendApiUrl}/api/messages/${selectedChatId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        setMessages(prev => ({ ...prev, [selectedChatId]: data }));
+        // Map DB messages to include 'from', and parse timestamps
+        setMessages(prev => ({
+          ...prev,
+          [selectedChatId]: data.map(msg => ({
+            from: msg.sender_id === userId ? 'me' : 'them',
+            content: msg.content,
+            timestamp: msg.timestamp ? new Date(msg.timestamp) : null,
+            senderId: msg.sender_id,
+            receiverId: msg.receiver_id,
+            delivered_at: msg.delivered_at ? new Date(msg.delivered_at) : null,
+            read_at: msg.read_at ? new Date(msg.read_at) : null,
+            id: msg.id
+          }))
+        }));
         setLoading(false);
       });
-  }, [selectedChatId]);
+  }, [selectedChatId, userId]);
+
+  useEffect(() => {
+    if (!selectedChatId) return;
+    ws = new WebSocket(`ws://localhost:${WS_PORT}`);
+    const token = Cookies.get('token');
+    let localUserId = userId;
+    if (!localUserId && token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        localUserId = payload.user.id;
+      } catch {}
+    }
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'init', userId: localUserId, matchId: selectedChatId }));
+    };
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'message' && data.matchId === selectedChatId) {
+          setMessages(prev => ({
+            ...prev,
+            [selectedChatId]: [...(prev[selectedChatId] || []), {
+              from: data.senderId === localUserId ? 'me' : 'them',
+              content: data.content,
+              timestamp: new Date(data.timestamp),
+              senderId: data.senderId,
+              receiverId: data.receiverId,
+              delivered_at: data.delivered_at ? new Date(data.delivered_at) : null,
+              read_at: data.read_at ? new Date(data.read_at) : null,
+              id: data.id
+            }]
+          }));
+        }
+        if (data.type === 'read' && data.matchId === selectedChatId && data.messageId) {
+          setMessages(prev => ({
+            ...prev,
+            [selectedChatId]: (prev[selectedChatId] || []).map(msg =>
+              msg.id === data.messageId ? { ...msg, read_at: new Date(data.read_at) } : msg
+            )
+          }));
+        }
+      } catch {}
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => {};
+    return () => {
+      ws && ws.close();
+    };
+  }, [selectedChatId, userId]);
+
+  // Send read event when a message from 'them' becomes visible
+  useEffect(() => {
+    if (!selectedChatId || !ws || ws.readyState !== 1) return;
+    const msgs = messages[selectedChatId] || [];
+    msgs.forEach((msg, idx) => {
+      if (msg.from === 'them' && !msg.read_at && readMessages[selectedChatId]?.[idx]) {
+        ws.send(JSON.stringify({
+          type: 'read',
+          matchId: selectedChatId,
+          messageId: msg.id
+        }));
+      }
+    });
+  }, [readMessages, selectedChatId, messages]);
 
   const handleSend = () => {
     if (!inputText.trim() || selectedChatId === null) return;
-    const newMsg = { from: 'me', text: inputText, timestamp: new Date() };
-    setMessages((prev) => ({
-      ...prev,
-      [selectedChatId]: [...(prev[selectedChatId] || []), newMsg],
-    }));
+    const token = Cookies.get('token');
+    let localUserId = userId;
+    if (!localUserId && token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        localUserId = payload.user.id;
+      } catch {}
+    }
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({
+        type: 'message',
+        matchId: selectedChatId,
+        senderId: localUserId,
+        receiverId: null,
+        content: inputText,
+      }));
+    }
     setInputText('');
   };
 
@@ -118,14 +229,27 @@ const Messages = () => {
     setIsAtBottom(isBottom);
   };
 
-  const formatTime = (date) =>
-    date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (date) => {
+    const d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d)) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
-  const formatDate = (date) =>
-    date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+  const formatDate = (date) => {
+    const d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d)) return '';
+    return d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+  };
 
   const msgs = selectedChatId !== null ? messages[selectedChatId] || [] : [];
   let lastDate = null;
+
+  useEffect(() => {
+    // If navigated with openMatchId, select that chat
+    if (location.state && location.state.openMatchId) {
+      setSelectedChatId(location.state.openMatchId);
+    }
+  }, [location.state]);
 
   return (
     <Box display="flex" height="calc(100vh - 64px)" position="relative">
@@ -197,7 +321,7 @@ const Messages = () => {
         )
          : (
           <>
-            {/* Message list */}
+            {}
             <Box
               ref={scrollRef}
               onScroll={handleScroll}
@@ -215,7 +339,9 @@ const Messages = () => {
               }}
             >
               {msgs.map((msg, index) => {
-                const msgDate = msg.timestamp ? msg.timestamp.toDateString() : '';
+                // Defensive: ensure msg.timestamp is a Date object
+                let dateObj = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
+                const msgDate = !isNaN(dateObj) ? dateObj.toLocaleDateString() : '';
                 const showDateSeparator = lastDate !== msgDate;
                 lastDate = msgDate;
 
@@ -234,7 +360,7 @@ const Messages = () => {
                           mb: 1,
                         }}
                       >
-                        {formatDate(msg.timestamp)}
+                        {msgDate}
                       </Box>
                     )}
                     <Box
@@ -251,7 +377,7 @@ const Messages = () => {
                         position: 'relative',
                       }}
                     >
-                      <Typography>{msg.text}</Typography>
+                      <Typography>{msg.content}</Typography>
                       <Box
                         sx={{
                           display: 'flex',
@@ -264,23 +390,18 @@ const Messages = () => {
                           sx={{
                             fontSize: '0.65rem',
                             color: msg.from === 'me'
-                              ? 'rgba(0,0,0,0.6)'
+                              ? (msg.read_at ? 'blue' : 'rgba(0,0,0,0.6)')
                               : 'rgba(255,255,255,0.6)',
                           }}
                         >
-                          {formatTime(msg.timestamp)}
+                          {msg.from === 'me' && (
+                            msg.read_at
+                              ? <span style={{ color: 'blue' }}>✓✓</span>
+                              : msg.delivered_at
+                                ? '✓✓'
+                                : '✓'
+                          )}
                         </Typography>
-                        {msg.from === 'me' && (
-                          <Typography
-                            sx={{
-                              fontSize: '0.65rem',
-                              color: 'rgba(0,0,0,0.6)',
-                              ml: 1,
-                            }}
-                          >
-                            {readMessages[selectedChatId]?.[index] ? <span style={{ color: 'blue' }}>✓✓</span> : '✓'}
-                          </Typography>
-                        )}
                       </Box>
                     </Box>
                   </React.Fragment>
@@ -288,7 +409,7 @@ const Messages = () => {
               })}
             </Box>
 
-            {/* Input bar */}
+            {}
             <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
               <TextField
                 fullWidth

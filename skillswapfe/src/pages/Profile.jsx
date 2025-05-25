@@ -3,6 +3,8 @@ import { Box, Typography, Paper, Button, Chip, TextField, CircularProgress, Dial
 import Cookies from 'js-cookie';
 import * as jose from 'jose';
 
+const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL;
+
 const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -10,9 +12,6 @@ const Profile = () => {
   const [bioDraft, setBioDraft] = useState('');
   const [editingBio, setEditingBio] = useState(false);
   const [skills, setSkills] = useState([]);
-  const [allSkills, setAllSkills] = useState([]);
-  const [newSkill, setNewSkill] = useState('');
-  const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -30,7 +29,6 @@ const Profile = () => {
     let userId;
     try {
       const payload = jose.decodeJwt(token);
-      console.log(payload);
       userId = payload.user.id;
       if (!userId) throw new Error('No userId in token');
     } catch (e) {
@@ -38,72 +36,55 @@ const Profile = () => {
       return;
     }
     // Fetch user profile
-    fetch(`http://localhost:4000/api/profile?userId=${userId}`, {
+    fetch(`${backendApiUrl}/api/profile?userId=${userId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
         setUser(data.user);
         setBio(data.user.bio || '');
-        setSkills(data.skills || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-    // Fetch all skills for add/remove
-    fetch('http://localhost:4000/api/skills')
-      .then(res => res.json())
-      .then(setAllSkills);
-  }, []);
-
-  const handleAddSkill = () => {
-    if (!newSkill) return;
-    fetch('http://localhost:4000/api/profile/add-skill', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Cookies.get('token')}` },
-      body: JSON.stringify({ skill: newSkill, userId: user.id })
-    })
+    // Fetch grouped skills for profile
+    fetch(`${backendApiUrl}/api/skills?userId=${userId}`)
       .then(res => res.json())
       .then(data => {
-        setSkills(data.skills);
-        setNewSkill('');
+        setSkills([
+          ...(data.learn || []).map(s => ({ ...s, type: 'learn' })),
+          ...(data.teach || []).map(s => ({ ...s, type: 'teach' }))
+        ]);
       });
-  };
-
-  const handleRemoveSkill = (skill) => {
-    fetch('http://localhost:4000/api/profile/remove-skill', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Cookies.get('token')}` },
-      body: JSON.stringify({ skill, userId: user.id })
-    })
-      .then(res => res.json())
-      .then(data => setSkills(data.skills));
-  };
+  }, []);
 
   const handleChangePassword = () => {
     setStatus('loading');
     setMessage('');
-
-    // Simulate async backend call
-    setTimeout(() => {
-      // Simulate success or error randomly (replace with real API)
-      const isSuccess = Math.random() > 0.3;
-
-      if (isSuccess) {
-        setStatus('success');
-        setMessage('Password changed successfully!');
-        // Reset form inputs after success
-        setOldPassword('');
-        setNewPassword('');
-      } else {
+    fetch(`${backendApiUrl}/api/profile/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Cookies.get('token')}` },
+      body: JSON.stringify({ userId: user.id, oldPassword, newPassword })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.message && data.message.toLowerCase().includes('success')) {
+          setStatus('success');
+          setMessage('Password changed successfully!');
+          setOldPassword('');
+          setNewPassword('');
+        } else {
+          setStatus('error');
+          setMessage(data.message || 'Error changing password.');
+        }
+      })
+      .catch(() => {
         setStatus('error');
-        setMessage('Error: Old password is incorrect.');
-      }
-    }, 1500);
+        setMessage('Network error.');
+      });
   };
 
   const handleSaveBio = () => {
-    setError('');
-    fetch('http://localhost:4000/api/profile/update-bio', {
+    fetch(`${backendApiUrl}/api/profile/update-bio`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Cookies.get('token')}` },
       body: JSON.stringify({ userId: user.id, bio: bioDraft })
@@ -142,7 +123,7 @@ const Profile = () => {
               minRows={2}
               maxRows={6}
               fullWidth
-              sx={{ input: { color: '#00FFF0' }, label: { color: '#00FFF0' }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#00FFF0' }, '&:hover fieldset': { borderColor: '#00FF9F' } }, fontSize: 18 }}
+              sx={{ input: { color: '#00FFF0' }, label: { color: '#00FFF0' }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#00FFF0' }, '&:hover fieldset': { borderColor: '#00FF9F' } }, fontSize: 18, textarea: { color: '#00FFF0' } }}
             />
             <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
               <Button variant="contained" sx={{ bgcolor: '#00FFF0', color: '#121212', fontWeight: 700, minWidth: 100 }} onClick={handleSaveBio}>Save</Button>
@@ -157,24 +138,106 @@ const Profile = () => {
             <Button variant="text" sx={{ color: '#00FFF0', fontWeight: 700 }} onClick={() => { setEditingBio(true); setBioDraft(bio); }}>Edit</Button>
           </Box>
         )}
-        <Typography variant="h6" sx={{ color: '#00FFF0', mb: 1 }}>Skills</Typography>
+        <hr style={{ border: '1px solid #222', margin: '32px 0 16px 0' }} />
+        <Typography variant="h6" sx={{ color: '#00FFF0', mb: 1 }}>Skills you want to learn</Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-          {skills.map(skill => (
-            <Chip key={skill} label={skill} onDelete={() => handleRemoveSkill(skill)} sx={{ bgcolor: '#00FFF0', color: '#121212', fontWeight: 700, fontSize: 16 }} />
-          ))}
+          {Array.isArray(skills) && skills.filter(s => s.level === 'beginner' || s.level === 'intermediate' || s.level === 'advanced' || s.type === 'learn').map(skill => {
+            const name = typeof skill === 'string' ? skill : skill.name;
+            const level = typeof skill === 'string' ? '' : (skill.level || '');
+            if (skill.type && skill.type !== 'learn') return null;
+            return (
+              <Chip 
+                key={name + '-learn'} 
+                label={
+                  <span>
+                    {name}
+                    {level && (
+                      <span style={{
+                        background: '#232323',
+                        color: '#00FFF0',
+                        borderRadius: 8,
+                        padding: '2px 8px',
+                        marginLeft: 8,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        display: 'inline-block',
+                        verticalAlign: 'middle'
+                      }}>
+                        {level}
+                      </span>
+                    )}
+                  </span>
+                }
+                sx={{ 
+                  bgcolor: '#00FFF0', 
+                  color: '#121212', 
+                  fontWeight: 700, 
+                  fontSize: 16, 
+                  borderRadius: 2,
+                  width: 'auto',
+                  minWidth: 0,
+                  maxWidth: '100%',
+                  '.MuiChip-label': {
+                    px: 2,
+                    py: 0.5,
+                    display: 'inline-block',
+                    whiteSpace: 'nowrap',
+                  }
+                }} 
+              />
+            );
+          })}
         </Box>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
-          <TextField
-            label="Add Skill"
-            value={newSkill}
-            onChange={e => setNewSkill(e.target.value)}
-            select={false}
-            sx={{ input: { color: '#00FFF0' }, label: { color: '#00FFF0' }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#00FFF0' }, '&:hover fieldset': { borderColor: '#00FF9F' } } }}
-            fullWidth
-          />
-          <Button variant="contained" sx={{ bgcolor: '#00FFF0', color: '#121212', fontWeight: 700 }} onClick={handleAddSkill}>Add</Button>
+        <hr style={{ border: '1px solid #222', margin: '32px 0 16px 0' }} />
+        <Typography variant="h6" sx={{ color: '#00FFF0', mb: 1 }}>Skills you can teach</Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+          {Array.isArray(skills) && skills.filter(s => s.type === 'teach' || (!s.type && (s.level === 'beginner' || s.level === 'intermediate' || s.level === 'advanced'))).map(skill => {
+            const name = typeof skill === 'string' ? skill : skill.name;
+            const level = typeof skill === 'string' ? '' : (skill.level || '');
+            if (skill.type && skill.type !== 'teach') return null;
+            return (
+              <Chip 
+                key={name + '-teach'} 
+                label={
+                  <span>
+                    {name}
+                    {level && (
+                      <span style={{
+                        background: '#232323',
+                        color: '#00FFF0',
+                        borderRadius: 8,
+                        padding: '2px 8px',
+                        marginLeft: 8,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        display: 'inline-block',
+                        verticalAlign: 'middle'
+                      }}>
+                        {level}
+                      </span>
+                    )}
+                  </span>
+                }
+                sx={{ 
+                  bgcolor: '#00FFF0', 
+                  color: '#121212', 
+                  fontWeight: 700, 
+                  fontSize: 16, 
+                  borderRadius: 2,
+                  width: 'auto',
+                  minWidth: 0,
+                  maxWidth: '100%',
+                  '.MuiChip-label': {
+                    px: 2,
+                    py: 0.5,
+                    display: 'inline-block',
+                    whiteSpace: 'nowrap',
+                  }
+                }} 
+              />
+            );
+          })}
         </Box>
-        {error && <Typography color="#FF4D4D">{error}</Typography>}
       </Paper>
 
       <Button

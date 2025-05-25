@@ -40,3 +40,13 @@
 .read-the-docs {
   color: #888;
 }
+
+.custom-skill-level-option:hover, select option:hover {
+  color: #fff !important;
+  background-color: #00FFF0 !important;
+}
+
+select {
+  background-color: #181F1F !important;
+  color: #00FFF0 !important;
+}

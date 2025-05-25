@@ -9,7 +9,6 @@ const MatchHistory = () => {
 
   useEffect(() => {
     const token = Cookies.get('token');
-    console.log('Token from cookie:', token);
     if (!token) {
       setLoading(false);
       return;
@@ -17,74 +16,44 @@ const MatchHistory = () => {
     let userId;
     try {
       const payload = jose.decodeJwt(token);
-      console.log('Decoded JWT payload:', payload);
       userId = payload.user.id;
       if (!userId) throw new Error('No userId in token');
     } catch (e) {
       setLoading(false);
-      console.error('JWT decode error:', e);
       return;
     }
-    // Only fetch if userId is present
     fetch('http://localhost:4000/api/matches?userId=' + userId, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => {
-        if (!res.ok) throw new Error('Network response was not ok');
-        return res.json();
-      })
+      .then(res => res.json())
       .then(data => {
         setMatches(data);
         setLoading(false);
       })
-      .catch((err) => {
-        setLoading(false);
-        console.error('Fetch error:', err);
-      });
+      .catch(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          color: '#00FF9F',
-          backgroundColor: '#121212',
-          padding: 2,
-          height: '100%',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <CircularProgress sx={{ color: '#00FF9F' }} size={50} thickness={5} />
-      </Box>
-    );
-  }
-
   return (
-    <Box sx={{ color: 'white', backgroundColor: '#121212', padding: 2, height: '100%' }}>
-      <Typography variant="h5" gutterBottom>
-        My Matches
-      </Typography>
-      <List>
-        {matches.map((match) => (
-          <ListItem
-            key={match.id}
-            sx={{
-              backgroundColor: '#1e1e1e',
-              marginBottom: 1,
-              borderRadius: 1,
-            }}
-          >
-            <ListItemText
-              primary={`With: ${match.username || match.name}`}
-              secondary={`Status: ${match.status} | Match Score: ${match.match_score}`}
-              primaryTypographyProps={{ sx: { color: 'white' } }}
-              secondaryTypographyProps={{ sx: { color: 'gray' } }}
-            />
-          </ListItem>
-        ))}
-      </List>
+    <Box sx={{ minHeight: '100vh', background: '#1E1E1E', color: 'white', p: 4 }}>
+      <Typography variant="h4" sx={{ color: '#00FF9F', mb: 3, fontWeight: 700 }}>Match History</Typography>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+          <CircularProgress sx={{ color: '#00FF9F' }} />
+        </Box>
+      ) : matches.length === 0 ? (
+        <Typography sx={{ color: '#888', fontSize: 22, mt: 4, textAlign: 'center' }}>Make some matches!</Typography>
+      ) : (
+        <List>
+          {matches.map(match => (
+            <ListItem key={match.id} sx={{ bgcolor: '#232323', borderRadius: 2, mb: 2, color: '#00FF9F', boxShadow: '0 0 4px #00FF9F22' }}>
+              <ListItemText
+                primary={<span style={{ color: '#00FF9F', fontWeight: 600 }}>{match.name}</span>}
+                secondary={<span style={{ color: '#888' }}>Status: {match.status}</span>}
+              />
+            </ListItem>
+          ))}
+        </List>
+      )}
     </Box>
   );
 };

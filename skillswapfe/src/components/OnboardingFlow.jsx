@@ -50,7 +50,8 @@ const skillCategories = [
 
 const levels = ['beginner', 'intermediate', 'advanced'];
 
-const API_URL = 'http://localhost:4000/api';
+const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL;
+const API_URL = `${backendApiUrl}/api`;
 
 const OnboardingFlow = ({ setIsLoggedIn }) => {
   const [step, setStep] = useState(0);
@@ -64,14 +65,16 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // On mount, check for JWT in cookie or localStorage and set isLoggedIn
     const token = Cookies.get('token') || localStorage.getItem('token');
-    if (token) {
-      setIsLoggedIn(true);
+    const signupData = sessionStorage.getItem('signupData');
+    if (!token && !signupData) {
+      window.location.href = '/';
+      return;
     }
+    if (token) setIsLoggedIn(true);
     setShowWelcome(true);
-    const timer1 = setTimeout(() => setShowWelcome(false), 2000); // Show overlay longer
-    const timer2 = setTimeout(() => setWelcomeVisible(false), 2600); // Fade out after overlay
+    const timer1 = setTimeout(() => setShowWelcome(false), 2000); 
+    const timer2 = setTimeout(() => setWelcomeVisible(false), 2600);
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
@@ -94,18 +97,9 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
     }
   };
 
-
-
+  // Allow onboarding to proceed even if no skills are selected for learn/teach
   const handleNext = () => {
     setError('');
-    if (step === 0 && learnSkills.length === 0) {
-      setError('Select at least one skill to learn.');
-      return;
-    }
-    if (step === 1 && teachSkills.length === 0) {
-      setError('Select at least one skill to teach.');
-      return;
-    }
     setStep(step + 1);
   };
 
@@ -115,6 +109,7 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
     setSkillLevels((prev) => ({ ...prev, [skill]: value }));
   };
 
+  // In handleSubmit, allow empty learn/teach skills
   const handleSubmit = async () => {
     setError('');
     if (!bio.trim()) {
@@ -127,13 +122,13 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
       setError('Signup data missing. Please sign up again.');
       return;
     }
-    // Prepare payload
+    // Prepare payload (ensure level is lowercase)
     const payload = {
       ...signupData,
       bio,
       skills: [
-        ...learnSkills.map(skill => ({ name: skill, type: 'learn', level: skillLevels[skill] || 'intermediate' })),
-        ...teachSkills.map(skill => ({ name: skill, type: 'teach', level: skillLevels[skill] || 'intermediate' })),
+        ...learnSkills.map(skill => ({ name: skill, type: 'learn', level: (skillLevels[skill] || 'intermediate').toLowerCase() })),
+        ...teachSkills.map(skill => ({ name: skill, type: 'teach', level: (skillLevels[skill] || 'intermediate').toLowerCase() })),
       ]
     };
     setLoading(true);
@@ -141,17 +136,16 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
       const res = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // allow cookies to be set
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const data = await res.json();
-        setError(data.message || 'Signup failed');
+        setError(data.message || 'Signup failed.');
         setLoading(false);
         return;
       }
       const data = await res.json();
-      // Store JWT token in cookie and localStorage for persistence
       if (data && data.token) {
         document.cookie = `token=${data.token}; path=/;`;
         localStorage.setItem('token', data.token);
@@ -161,13 +155,13 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
       setLoading(false);
       window.location.href = '/';
     } catch (err) {
-      setError('Network error'+err.message);
+      setError('Signup failed.');
       setLoading(false);
     }
   };
 
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', bgcolor: '#1E1E1E', position: 'relative', width: '100vw', overflowX: 'hidden' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', bgcolor: '#1E1E1E', width: '100vw', overflowX: 'hidden' }}>
       {loading && (
         <Box sx={{
           position: 'fixed',
@@ -385,7 +379,7 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
                     fullWidth
                     value={bio}
                     onChange={e => setBio(e.target.value)}
-                    sx={{ mt: 2, bgcolor: '#333', color: 'white', input: { color: 'white' }, label: { color: 'wheat' } }}
+                    sx={{ mt: 2, bgcolor: '#333', color: '#00FF9F', input: { color: '#00FF9F' }, label: { color: '#00FF9F' }, textarea: { color: '#00FF9F' } }}
                   />
                   {error && <Typography color="#FF4D4D" mt={2}>{error}</Typography>}
                   <Box display="flex" justifyContent="space-between" mt={3}>

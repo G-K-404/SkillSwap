@@ -1,21 +1,57 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, Rating, Button, CircularProgress } from '@mui/material';
+import Cookies from 'js-cookie';
+import * as jose from 'jose';
+
+const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL;
 
 const FindTeachers = () => {
   const { skillName } = useParams();
   const [loading, setLoading] = useState(true);
   const [teachers, setTeachers] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
-    fetch(`http://localhost:4000/api/teachers?skill=${encodeURIComponent(skillName)}`)
+    fetch(`${backendApiUrl}/api/teachers?skill=${encodeURIComponent(skillName)}`)
       .then(res => res.json())
       .then(data => {
         setTeachers(data);
         setLoading(false);
       });
   }, [skillName]);
+
+  const handleMessage = async (teacher) => {
+    // Get current user ID from token
+    const token = Cookies.get('token') || localStorage.getItem('token');
+    let userId;
+    try {
+      const payload = jose.decodeJwt(token);
+      userId = payload.user.id;
+    } catch {
+      alert('Could not get user ID. Please log in again.');
+      return;
+    }
+    if (userId === teacher.id) {
+      alert('You cannot message yourself.');
+      return;
+    }
+    // Create or get match
+    try {
+      const res = await fetch(`${backendApiUrl}/api/matches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ user1Id: userId, user2Id: teacher.id, skill: skillName })
+      });
+      const data = await res.json();
+      if (!data.matchId) throw new Error('No matchId returned');
+      // Navigate to messages page and open the chat
+      navigate('/messages', { state: { openMatchId: data.matchId } });
+    } catch (err) {
+      alert('Failed to start chat: ' + err.message);
+    }
+  };
 
   if (loading) {
     return (
@@ -71,7 +107,7 @@ const FindTeachers = () => {
                 }}
               />
 
-              <Box mt={2}>
+              <Box mt={2} display="flex" gap={1}>
                 <Button
                   variant="outlined"
                   sx={{
@@ -82,9 +118,23 @@ const FindTeachers = () => {
                       color: 'black',
                     },
                   }}
-                  onClick={() => alert(`Starting chat with ${teacher.name}`)}
+                  onClick={() => handleMessage(teacher)}
                 >
                   Message
+                </Button>
+                <Button
+                  variant="outlined"
+                  sx={{
+                    borderColor: '#00FFF0',
+                    color: '#00FFF0',
+                    '&:hover': {
+                      bgcolor: '#00FFF0',
+                      color: 'black',
+                    },
+                  }}
+                  onClick={() => navigate(`/profile/${teacher.id}`)}
+                >
+                  Profile
                 </Button>
               </Box>
             </Box>
