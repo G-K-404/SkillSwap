@@ -14,7 +14,7 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import { useLocation } from 'react-router-dom';
 
-const WS_PORT = import.meta.env.VITE_WS_PORT || 4001;
+const WS_PORT = import.meta.env.VITE_WS_PORT || 4005;
 const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL;
 let ws = null;
 
@@ -244,12 +244,19 @@ const Messages = () => {
   const msgs = selectedChatId !== null ? messages[selectedChatId] || [] : [];
   let lastDate = null;
 
+  // Helper to get openMatchId from state or query string
+  function getOpenMatchId() {
+    if (location.state && location.state.openMatchId) return location.state.openMatchId;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('openMatchId')) return params.get('openMatchId');
+    return null;
+  }
+
+  // Set selectedChatId on mount or when location changes
   useEffect(() => {
-    // If navigated with openMatchId, select that chat
-    if (location.state && location.state.openMatchId) {
-      setSelectedChatId(location.state.openMatchId);
-    }
-  }, [location.state]);
+    const openMatchId = getOpenMatchId();
+    if (openMatchId) setSelectedChatId(openMatchId);
+  }, [location.state, location.search]);
 
   return (
     <Box display="flex" height="calc(100vh - 64px)" position="relative">

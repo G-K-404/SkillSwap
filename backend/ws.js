@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import pgl from './db.js';
 dotenv.config();
 
-const wss = new WebSocketServer({ port: 4001 });
+const wss = new WebSocketServer({ port: 4005 });
 
 
 const matchSockets = new Map();
@@ -74,7 +74,7 @@ wss.on('connection', (ws, req) => {
         }
       }
     } catch (e) {
-      
+      console.log(e);
     }
   });
 
@@ -88,4 +88,4 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-console.log('WebSocket server running on port 4001');
+console.log('WebSocket server running on port 4005');

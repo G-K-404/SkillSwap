@@ -16,7 +16,6 @@ const Profile = () => {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
-  // status: idle, loading, success, error
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
 
@@ -46,7 +45,6 @@ const Profile = () => {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-    // Fetch grouped skills for profile
     fetch(`${backendApiUrl}/api/skills?userId=${userId}`)
       .then(res => res.json())
       .then(data => {
