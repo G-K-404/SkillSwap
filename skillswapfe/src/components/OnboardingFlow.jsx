@@ -2,54 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button, Chip, Grid, Paper, TextField, MenuItem, Fade } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import Cookies from 'js-cookie';
-
-const skillCategories = [
-  {
-    category: 'Technology & Programming',
-    skills: [
-      'Python', 'JavaScript', 'HTML & CSS', 'Java', 'C++', 'React.js', 'Node.js', 'Git & GitHub', 'SQL & Databases', 'Data Structures & Algorithms', 'Machine Learning', 'Cybersecurity', 'Linux', 'Web Development', 'Mobile App Development (Flutter, React Native)'
-    ]
-  },
-  {
-    category: 'Creative & Design',
-    skills: [
-      'Graphic Design', 'UX/UI Design', 'Adobe Photoshop', 'Adobe Illustrator', 'Figma', 'Video Editing (Premiere Pro, DaVinci Resolve)', 'Animation', '3D Modeling (Blender, Maya)', 'Photography', 'Interior Design'
-    ]
-  },
-  {
-    category: 'Business & Marketing',
-    skills: [
-      'Digital Marketing', 'SEO', 'Social Media Management', 'Copywriting', 'Content Creation', 'Project Management', 'Business Strategy', 'Public Speaking', 'Microsoft Excel', 'Sales Techniques'
-    ]
-  },
-  {
-    category: 'Personal Development',
-    skills: [
-      'Time Management', 'Goal Setting', 'Meditation & Mindfulness', 'Productivity Tools (Notion, Trello)', 'Financial Literacy', 'Resume Writing', 'Interview Skills', 'Language Learning Strategies'
-    ]
-  },
-  {
-    category: 'Languages',
-    skills: [
-      'English', 'Spanish', 'French', 'German', 'Japanese', 'Mandarin', 'Arabic', 'Hindi'
-    ]
-  },
-  {
-    category: 'Music & Art',
-    skills: [
-      'Guitar', 'Piano', 'Music Theory', 'Singing', 'Music Production (FL Studio, Ableton Live)', 'Drawing', 'Watercolor Painting', 'Calligraphy'
-    ]
-  },
-  {
-    category: 'Health, Fitness & Lifestyle',
-    skills: [
-      'Yoga', 'Weight Training', 'Nutrition', 'Cooking', 'Meal Planning', 'First Aid Basics', 'Self-defense'
-    ]
-  }
-];
-
-const levels = ['beginner', 'intermediate', 'advanced'];
-
 const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL;
 const API_URL = `${backendApiUrl}/api`;
 
@@ -67,7 +19,7 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
   useEffect(() => {
     const token = Cookies.get('token') || localStorage.getItem('token');
     const signupData = sessionStorage.getItem('signupData');
-    if (!token && !signupData) {
+    if (!signupData) {
       window.location.href = '/';
       return;
     }
@@ -80,8 +32,6 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
       clearTimeout(timer2);
     };
   }, []);
-
-  // Helper to select skills
   const handleSkillSelect = (skill, type) => {
     if (type === 'learn') {
       setLearnSkills((prev) => prev.includes(skill) ? prev : [...prev, skill]);
@@ -97,32 +47,24 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
     }
   };
 
-  // Allow onboarding to proceed even if no skills are selected for learn/teach
-  const handleNext = () => {
-    setError('');
-    setStep(step + 1);
-  };
-
+  const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
 
   const handleLevelChange = (skill, value) => {
     setSkillLevels((prev) => ({ ...prev, [skill]: value }));
   };
 
-  // In handleSubmit, allow empty learn/teach skills
   const handleSubmit = async () => {
     setError('');
     if (!bio.trim()) {
       setError('Please enter a short bio.');
       return;
     }
-    // Get signup data from sessionStorage
     const signupData = JSON.parse(sessionStorage.getItem('signupData'));
     if (!signupData) {
       setError('Signup data missing. Please sign up again.');
       return;
     }
-    // Prepare payload (ensure level is lowercase)
     const payload = {
       ...signupData,
       bio,
@@ -271,13 +213,13 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
                                   value={skillLevels[skill] || 'intermediate'}
                                   onChange={e => handleLevelChange(skill, e.target.value)}
                                   sx={{ ml: 1, width: 120, bgcolor: '#333', color: 'white',
-                                    '& .MuiSelect-icon': { display: 'none' }, // Hide dropdown arrow
+                                    '& .MuiSelect-icon': { display: 'none' },
                                     '& .MuiInputBase-input': { pr: 0 },
                                     '& .MuiOutlinedInput-notchedOutline': { borderColor: '#00FF9F' },
                                     '& .MuiSelect-select': { color: 'white' },
                                   }}
                                   SelectProps={{
-                                    IconComponent: () => null // Remove dropdown arrow
+                                    IconComponent: () => null
                                   }}
                                 >
                                   {levels.map(lvl => <MenuItem key={lvl} value={lvl}>{lvl.charAt(0).toUpperCase() + lvl.slice(1)}</MenuItem>)}
@@ -342,13 +284,13 @@ const OnboardingFlow = ({ setIsLoggedIn }) => {
                                   value={skillLevels[skill] || 'intermediate'}
                                   onChange={e => handleLevelChange(skill, e.target.value)}
                                   sx={{ ml: 1, width: 120, bgcolor: '#333', color: 'white',
-                                    '& .MuiSelect-icon': { display: 'none' }, // Hide dropdown arrow
+                                    '& .MuiSelect-icon': { display: 'none' }, 
                                     '& .MuiInputBase-input': { pr: 0 },
                                     '& .MuiOutlinedInput-notchedOutline': { borderColor: '#00FF9F' },
                                     '& .MuiSelect-select': { color: 'white' },
                                   }}
                                   SelectProps={{
-                                    IconComponent: () => null // Remove dropdown arrow
+                                    IconComponent: () => null 
                                   }}
                                 >
                                   {levels.map(lvl => <MenuItem key={lvl} value={lvl}>{lvl.charAt(0).toUpperCase() + lvl.slice(1)}</MenuItem>)}

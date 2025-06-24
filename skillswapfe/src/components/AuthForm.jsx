@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { Box, Paper, Tabs, Tab, TextField, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
-import * as jose from 'jose';
-
 const backendApiUrl = import.meta.env.VITE_BACKEND_API_URL;
 const API_URL = `${backendApiUrl}/api`;
 
