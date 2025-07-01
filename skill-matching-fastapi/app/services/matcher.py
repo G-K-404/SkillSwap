@@ -5,7 +5,7 @@ from pgvector.psycopg2 import register_vector
 from datetime import datetime
 import os
 
-# --- DB Connection ---
+
 def get_db_conn():
     return psycopg2.connect(
         dbname=os.getenv("POSTGRES_DB", "postgres"),
@@ -15,7 +15,7 @@ def get_db_conn():
         port=os.getenv("POSTGRES_PORT", "6543")
     )
 
-# --- Model ---
+
 model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 def format_user_string(bio, teach_skills, learn_skills):
