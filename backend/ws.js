@@ -20,19 +20,16 @@ wss.on('connection', (ws, req) => {
         return;
       }
       if (data.type === 'message') {
-        // Insert message and get the inserted row (including id, timestamp)
         const result = await pgl.query(
           'INSERT INTO messages (match_id, sender_id, receiver_id, content) VALUES ($1, $2, $3, $4) RETURNING *',
           [data.matchId, data.senderId, data.receiverId, data.content]
         );
         const msg = result.rows[0];
-        // Mark delivered_at if receiver is connected
         let deliveredAt = null;
         if (matchSockets.has(data.matchId)) {
           for (const sock of matchSockets.get(data.matchId)) {
             const meta = socketMeta.get(sock);
             if (meta && meta.userId === data.receiverId && sock.readyState === 1) {
-              // Mark as delivered
               deliveredAt = new Date();
               await pgl.query('UPDATE messages SET delivered_at = $1 WHERE id = $2', [deliveredAt, msg.id]);
               break;
@@ -56,11 +53,9 @@ wss.on('connection', (ws, req) => {
           }
         }
       }
-      // Handle read event
       if (data.type === 'read' && data.messageId) {
         const readAt = new Date();
         await pgl.query('UPDATE messages SET read_at = $1 WHERE id = $2', [readAt, data.messageId]);
-        // Notify all clients in the match
         if (matchSockets.has(data.matchId)) {
           const payload = JSON.stringify({
             type: 'read',
